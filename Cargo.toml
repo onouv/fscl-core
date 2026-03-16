@@ -14,3 +14,4 @@ env_logger = "0.11"
 thiserror = "2.0.18"
 dotenv = "0.15.0"
 anyhow = "1.0.102"
+sqlx = { version = "0.8.6", features = [ "postgres", "runtime-tokio" ]}
