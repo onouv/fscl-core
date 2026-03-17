@@ -7,7 +7,6 @@
 use std::future::Future;
 use crate::ResourceRecord;
 use crate::core::application::{
-    ResourceService,
     CreateResourceUow,
     DeleteResourceUow,
 };
@@ -52,33 +51,35 @@ where
     CREATE: UnitOfWorkPort,
     DELETE: UnitOfWorkPort,
 {
-    core_service: ResourceService<CreateResourceUow<CREATE>, DeleteResourceUow<DELETE>>,
+    create_uow: CreateResourceUow<CREATE>,
+    delete_uow: DeleteResourceUow<DELETE>,
 }
 
 
 impl<C, D> DemoResourceService<C, D>
 where
-    U: UnitOfWorkPort,
+    C: UnitOfWorkPort,
+    D: UnitOfWorkPort<Error = C::Error>,
 {
-    pub fn new(unit_of_work: U) -> Self {
-        let create_uow = CreateResourceUow::new(unit_of_work.clone());
-        let delete_uow = DeleteResourceUow::new(unit_of_work);
+    pub fn new(create_port: C, delete_port: D) -> Self {
+        let create_uow = CreateResourceUow::new(create_port);
+        let delete_uow = DeleteResourceUow::new(delete_port);
 
         Self {
-            core_service: ResourceService::new(create_uow),
-            core_delete_service: DeleteResourceService::new(delete_uow),
+            create_uow,
+            delete_uow,
         }
     }
 
     pub fn create_demo_resource(
         &self,
         record: DemoResourceRecord,
-    ) -> impl Future<Output = Result<(), U::Error>> + Send {
+    ) -> impl Future<Output = Result<(), C::Error>> + Send {
         let resource_id = record.resource.id();
         let process_name = record.demo_name;
         let demo_payload = record.demo_payload;
 
-        self.core_service.create_with(resource_id, move |tx| {
+        self.create_uow.create_with(resource_id, move |tx| {
             Box::pin(async move {
                 // Demo placeholder for client-specific algorithm executed in same tx.
                 let _ = tx;
@@ -93,12 +94,12 @@ where
     pub fn delete_demo_resource(
         &self,
         record: DemoResourceRecord,
-    ) -> impl Future<Output = Result<(), U::Error>> + Send {
+    ) -> impl Future<Output = Result<(), D::Error>> + Send {
         let resource_id = record.resource.id();
         let demo_name = record.demo_name;
         let demo_payload = record.demo_payload;
 
-        self.core_delete_service.delete_with(resource_id, move |tx| {
+        self.delete_uow.delete_with(resource_id, move |tx| {
             Box::pin(async move {
                 // Demo placeholder for client-specific algorithm executed in same tx.
                 let _ = tx;
@@ -185,8 +186,9 @@ mod tests {
     async fn demo_resource_service_can_be_instantiated_and_used_with_injected_uow() {
         // Emulate main composition: build concrete DB adapter, then inject the driven UoW.
         let mock_db = MockDatabase::default();
-        let uow = UnitOfWork::new(mock_db.clone());
-        let service = DemoResourceService::new(uow);
+        let create_uow = UnitOfWork::new(mock_db.clone());
+        let delete_uow = UnitOfWork::new(mock_db.clone());
+        let service = DemoResourceService::new(create_uow, delete_uow);
 
         let resource_id = ResourceId::new("demo-resource-1".to_string()).unwrap();
         let client_resource = DemoResource::new(
