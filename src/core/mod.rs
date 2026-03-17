@@ -9,5 +9,6 @@ pub use ports::*;
 
 pub mod adapters;
 
-pub mod demo_client;
-pub use demo_client::*;
+// just for demonstrating use of the core lib
+// TODO: move this to a cargo doc scraped example
+mod demo_client;
