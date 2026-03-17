@@ -6,12 +6,9 @@
 
 use std::future::Future;
 use crate::ResourceRecord;
-use crate::core::application::{
-    CreateResourceUow,
-    DeleteResourceUow,
-};
+use crate::core::application::DefaultResourceLifecycleWorkflow;
 use crate::core::domain::{Resource, ResourceId};
-use crate::core::ports::UnitOfWorkPort;
+use crate::core::ports::{ResourceLifecycleWorkflowPort, UnitOfWorkPort};
 
 #[derive(Debug, Clone)]
 pub struct DemoResource {
@@ -46,40 +43,31 @@ pub struct DemoResourceRecord {
 }
 
 #[derive(Clone)]
-pub struct DemoResourceService<CREATE, DELETE>
+pub struct DemoResourceService<W>
 where
-    CREATE: UnitOfWorkPort,
-    DELETE: UnitOfWorkPort,
+    W: ResourceLifecycleWorkflowPort,
 {
-    create_uow: CreateResourceUow<CREATE>,
-    delete_uow: DeleteResourceUow<DELETE>,
+    workflow: W,
 }
 
 
-impl<C, D> DemoResourceService<C, D>
+impl<W> DemoResourceService<W>
 where
-    C: UnitOfWorkPort,
-    D: UnitOfWorkPort<Error = C::Error>,
+    W: ResourceLifecycleWorkflowPort,
 {
-    pub fn new(create_port: C, delete_port: D) -> Self {
-        let create_uow = CreateResourceUow::new(create_port);
-        let delete_uow = DeleteResourceUow::new(delete_port);
-
-        Self {
-            create_uow,
-            delete_uow,
-        }
+    pub fn new(workflow: W) -> Self {
+        Self { workflow }
     }
 
     pub fn create_demo_resource(
         &self,
         record: DemoResourceRecord,
-    ) -> impl Future<Output = Result<(), C::Error>> + Send {
+    ) -> impl Future<Output = Result<(), W::Error>> + Send {
         let resource_id = record.resource.id();
         let process_name = record.demo_name;
         let demo_payload = record.demo_payload;
 
-        self.create_uow.create_with(resource_id, move |tx| {
+        self.workflow.create_resource_with(resource_id, move |tx| {
             Box::pin(async move {
                 // Demo placeholder for client-specific algorithm executed in same tx.
                 let _ = tx;
@@ -94,12 +82,12 @@ where
     pub fn delete_demo_resource(
         &self,
         record: DemoResourceRecord,
-    ) -> impl Future<Output = Result<(), D::Error>> + Send {
+    ) -> impl Future<Output = Result<(), W::Error>> + Send {
         let resource_id = record.resource.id();
         let demo_name = record.demo_name;
         let demo_payload = record.demo_payload;
 
-        self.delete_uow.delete_with(resource_id, move |tx| {
+        self.workflow.delete_resource_with(resource_id, move |tx| {
             Box::pin(async move {
                 // Demo placeholder for client-specific algorithm executed in same tx.
                 let _ = tx;
@@ -112,12 +100,12 @@ where
     }
 }
 
-impl<U> DemoResourceService<U, U>
+impl<U> DemoResourceService<DefaultResourceLifecycleWorkflow<U, U>>
 where
     U: UnitOfWorkPort,
 {
     pub fn from_shared_uow(unit_of_work: U) -> Self {
-        Self::new(unit_of_work.clone(), unit_of_work)
+        Self::new(DefaultResourceLifecycleWorkflow::from_shared_uow(unit_of_work))
     }
 }
 
@@ -132,6 +120,7 @@ mod tests {
 
     use super::{DemoResource, DemoResourceRecord, DemoResourceService};
     use crate::core::adapters::driven::db::{DatabasePort, UnitOfWork};
+    use crate::core::application::DefaultResourceLifecycleWorkflow;
     use crate::core::domain::ResourceId;
 
     #[derive(Debug, Default)]
@@ -196,7 +185,8 @@ mod tests {
         // Emulate main composition: build concrete DB adapter, then inject the driven UoW.
         let mock_db = MockDatabase::default();
         let uow = UnitOfWork::new(mock_db.clone());
-        let service = DemoResourceService::from_shared_uow(uow);
+        let workflow = DefaultResourceLifecycleWorkflow::from_shared_uow(uow);
+        let service = DemoResourceService::new(workflow);
 
         let resource_id = ResourceId::new("demo-resource-1".to_string()).unwrap();
         let client_resource = DemoResource::new(
