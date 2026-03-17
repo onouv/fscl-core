@@ -112,6 +112,15 @@ where
     }
 }
 
+impl<U> DemoResourceService<U, U>
+where
+    U: UnitOfWorkPort,
+{
+    pub fn from_shared_uow(unit_of_work: U) -> Self {
+        Self::new(unit_of_work.clone(), unit_of_work)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
@@ -186,9 +195,8 @@ mod tests {
     async fn demo_resource_service_can_be_instantiated_and_used_with_injected_uow() {
         // Emulate main composition: build concrete DB adapter, then inject the driven UoW.
         let mock_db = MockDatabase::default();
-        let create_uow = UnitOfWork::new(mock_db.clone());
-        let delete_uow = UnitOfWork::new(mock_db.clone());
-        let service = DemoResourceService::new(create_uow, delete_uow);
+        let uow = UnitOfWork::new(mock_db.clone());
+        let service = DemoResourceService::from_shared_uow(uow);
 
         let resource_id = ResourceId::new("demo-resource-1".to_string()).unwrap();
         let client_resource = DemoResource::new(
