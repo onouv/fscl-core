@@ -1,58 +1,68 @@
+use std::future::Future;
 use std::pin::Pin;
 
-use sqlx::{Error, Postgres, Transaction, PgPool};
-
+use sqlx::Error;
+use super::{DatabasePort, SqlxPgDatabase};
 use crate::core::ports::UnitOfWorkPort;
 
+
+
+/// Unit of Work pattern implementation for a database connection, allowing to bundle multiple operations 
+/// on repositories in a single transaction.
+/// 
+/// The `execute` method takes a closure that performs operations within a transaction.
 #[derive(Clone)]
-pub struct UnitOfWork {
-    pool: PgPool,
+pub struct UnitOfWork<D>
+where
+    D: DatabasePort,
+{
+    db: D,
 }
 
-impl UnitOfWork {
-    // note: PgPool is Clone and the clone remains tied to same connection pool
-    pub async fn new() -> Result<Self, Error> {
-        let pool = PgPool::connect("postgres://postgres:postgres@localhost/process").await?;
-
-        Ok(Self { pool })
+impl<D> UnitOfWork<D>
+where
+    D: DatabasePort,
+{
+    pub fn new(db: D) -> Self {
+        Self { db }
     }
 
-    pub async fn execute<F>(&self, operation: F) -> Result<(), Error>
+    pub async fn execute<F>(&self, operation: F) -> Result<(), D::Error>
     where
         F: for<'c> FnOnce(
-                &'c mut Transaction<'_, Postgres>,
+                &'c mut D::Tx<'c>,
             )
-                -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send + 'c>>
-            + Send,
+                -> Pin<Box<dyn Future<Output = Result<(), D::Error>> + Send + 'c>>
+            + Send
+            + 'static,
     {
-        let mut tx: Transaction<'_, Postgres> = self.pool.begin().await?;
-
-        // Execute the operation within the transaction
-        let result = operation(&mut tx).await;
-
-        match result {
-            Ok(res) => {
-                tx.commit().await?;
-                Ok(res)
-            }
-            Err(e) => {
-                tx.rollback().await?;
-                Err(e)
-            }
-        }
+        self.db.execute_in_transaction(operation).await
     }
 }
 
-impl UnitOfWorkPort for UnitOfWork {
-    type Db = Postgres;
-    type Error = Error;
 
-    fn execute<F>(&self, operation: F) -> impl Future<Output = Result<(), Self::Error>> + Send
+
+impl UnitOfWork<SqlxPgDatabase> {
+    // Convenience constructor for production composition in main.
+    pub async fn connect(connection_string: &str) -> Result<Self, Error> {
+        Ok(Self::new(SqlxPgDatabase::connect(connection_string).await?))
+    }
+}
+
+impl<D> UnitOfWorkPort for UnitOfWork<D>
+where
+    D: DatabasePort,
+{
+    type Error = D::Error;
+    type Tx<'tx> = D::Tx<'tx>;
+
+    fn execute<F>(&self, operation: F) -> impl Future<Output = Result<(), Self::Error>> + Send + '_
     where
         F: for<'tx> FnOnce(
-                &'tx mut Transaction<'_, Self::Db>,
+                &'tx mut Self::Tx<'tx>,
             ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'tx>>
-            + Send,
+            + Send
+            + 'static,
     {
         Self::execute(self, operation)
     }
