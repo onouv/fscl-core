@@ -1,4 +1,3 @@
-use std::fmt::{self, Display, Formatter};
 use thiserror::Error;
 
 pub trait Resource {
@@ -9,6 +8,7 @@ pub trait Resource {
     }
 }
 
+/// The essential data of any FSCL resource.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResourceRecord {
     pub id: ResourceId,
@@ -42,6 +42,7 @@ impl ResourceRecord {
     }
 }
 
+/// The idiomatic identifier type for FSCL resources.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ResourceId(String);
 
@@ -61,22 +62,8 @@ impl ResourceId {
 
 #[derive(Debug, Clone, Error)]
 pub enum ResourceIdError {
+    #[error("Resource ID cannot be empty.")]
     ResourceIdEmpty,
     // There will more parsing errors...
 }
 
-impl Display for ResourceId {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Display for ResourceIdError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let result = match self {
-            ResourceIdError::ResourceIdEmpty => "Empty id string."
-        }; 
-        
-        write!(f, "{}", result)
-    }
-}

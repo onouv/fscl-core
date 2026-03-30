@@ -26,6 +26,7 @@ impl DatabasePort for SqlxPgDatabase {
     type Error = Error;
     type Tx<'tx> = sqlx::pool::PoolConnection<Postgres>;
 
+    #[allow(clippy::manual_async_fn)] // since we need to apply trait bounds on future.
     fn execute_in_transaction<F>(&self, operation: F) -> impl Future<Output = Result<(), Self::Error>> + Send + '_
     where
         F: for<'tx> FnOnce(

@@ -1,5 +1,5 @@
 [package]
-name = "fscl-core"
+name = "fscl_core"
 version = "0.1.0"
 edition = "2024"
 
@@ -15,6 +15,9 @@ thiserror = "2.0.18"
 dotenv = "0.15.0"
 anyhow = "1.0.102"
 sqlx = { version = "0.8.6", features = [ "postgres", "runtime-tokio" ]}
+derive-getters = "0.5.0"
+strum = "0.28.0"
+strum_macros = "0.28.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

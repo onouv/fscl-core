@@ -22,11 +22,16 @@ impl<P: UnitOfWorkPort> CreateResourceUow<P> {
     where
         R: Resource + Send + Sync,
     {
-        self.create_by_id(resource.id())
-    }
+        
+        self.port.execute(move |tx| {
+            Box::pin(async move {
+                // Standardized shadow-model-management create algorithm.
+                let _ = tx;
+                let _ = resource;
 
-    pub fn create_by_id(&self, resource_id: ResourceId) -> impl Future<Output = Result<(), P::Error>> + Send {
-        self.create_with(resource_id, |_tx| Box::pin(async { Ok(()) }))
+                Ok(())
+            })
+        })
     }
 
     pub fn create_with<F>(

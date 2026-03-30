@@ -1,1 +1,2 @@
-pub mod db;
+mod db;
+pub use db::*;
