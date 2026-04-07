@@ -27,12 +27,13 @@ where
         Self { db }
     }
 
-    pub async fn execute<F>(&self, operation: F) -> Result<(), D::Error>
+    pub async fn execute<T, F>(&self, operation: F) -> Result<T, D::Error>
     where
+        T: Send,
         F: for<'c> FnOnce(
                 &'c mut D::Tx<'c>,
             )
-                -> Pin<Box<dyn Future<Output = Result<(), D::Error>> + Send + 'c>>
+                -> Pin<Box<dyn Future<Output = Result<T, D::Error>> + Send + 'c>>
             + Send
             + 'static,
     {
@@ -56,11 +57,12 @@ where
     type Error = D::Error;
     type Tx<'tx> = D::Tx<'tx>;
 
-    fn execute<F>(&self, operation: F) -> impl Future<Output = Result<(), Self::Error>> + Send + '_
+    fn execute<T, F>(&self, operation: F) -> impl Future<Output = Result<T, Self::Error>> + Send + '_
     where
+        T: Send,
         F: for<'tx> FnOnce(
                 &'tx mut Self::Tx<'tx>,
-            ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'tx>>
+            ) -> Pin<Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>>
             + Send
             + 'static,
     {

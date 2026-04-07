@@ -1,26 +1,20 @@
+use serde::Serialize;
 use thiserror::Error;
-
-pub trait Resource {
-    fn id(&self) -> ResourceId;
-    fn name(&self) -> String;
-    fn description(&self) -> Option<String> {
-        None
-    }
-}
 
 /// The essential data of any FSCL resource.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResourceRecord {
+pub struct Resource {
     pub id: ResourceId,
     pub name: String,
     pub description: Option<String>,
 }
 
-impl ResourceRecord {
+impl Resource {
     pub fn new(id: ResourceId, name: String, description: Option<String>) -> Self {
         Self { id, name, description }
     }
 
+    /*
     pub fn from_resource<R: Resource>(resource: &R) -> Self {
         Self {
             id: resource.id(),
@@ -28,7 +22,7 @@ impl ResourceRecord {
             description: resource.description(),
         }
     }
-
+*/
     pub fn id(&self) -> ResourceId {
         self.id.clone()
     }
@@ -43,7 +37,7 @@ impl ResourceRecord {
 }
 
 /// The idiomatic identifier type for FSCL resources.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ResourceId(String);
 
 impl ResourceId {
@@ -57,6 +51,10 @@ impl ResourceId {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.clone()
     }
 }
 

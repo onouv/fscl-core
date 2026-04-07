@@ -1,8 +1,8 @@
 mod aggregate_type;
 pub use aggregate_type::*;
 
-mod messaged_event;
-pub(super) use messaged_event::*;
+mod event_message;
+pub use event_message::*;
 
-mod component;
-pub use component::*;
+mod component_events;
+pub use component_events::*;
