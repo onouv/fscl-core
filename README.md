@@ -21,7 +21,7 @@ view services
     +--> fscl-core
 ```
 
-`fscl-core` depends on `fscl-messaging` today because it exposes a bridge helper in `core::messaging` for constructing `EventEnvelope` values from core identifiers.
+`fscl-core` depends on `fscl-messaging`  because it exposes a bridge helper in `core::messaging` for constructing `EventEnvelope` values from core identifiers.
 
 ## Split
 
