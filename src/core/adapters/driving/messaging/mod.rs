@@ -5,4 +5,3 @@ mod event_message;
 pub use event_message::*;
 
 mod component_events;
-pub use component_events::*;

@@ -83,7 +83,7 @@ where
 mod tests {
     use std::future::{Future, ready};
     use std::pin::Pin;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::{CreateDemoComponentRequest, DeleteDemoComponentRequest, DemoComponentService};
@@ -132,12 +132,22 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct MockRepo {
+        component: Arc<Mutex<Option<Component>>>,
         find_calls: Arc<AtomicUsize>,
         upsert_calls: Arc<AtomicUsize>,
         delete_calls: Arc<AtomicUsize>,
     }
 
     impl MockRepo {
+        fn with_component(component: Component) -> Self {
+            Self {
+                component: Arc::new(Mutex::new(Some(component))),
+                find_calls: Arc::new(AtomicUsize::new(0)),
+                upsert_calls: Arc::new(AtomicUsize::new(0)),
+                delete_calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
         fn find_call_count(&self) -> usize {
             self.find_calls.load(Ordering::Relaxed)
         }
@@ -161,7 +171,7 @@ mod tests {
             _id: &ResourceId,
         ) -> impl Future<Output = Result<Option<Component>, Self::Error>> + Send {
             self.find_calls.fetch_add(1, Ordering::Relaxed);
-            ready(Ok(None))
+            ready(Ok(self.component.lock().unwrap().clone()))
         }
 
         fn upsert_component(
@@ -179,6 +189,7 @@ mod tests {
             _component_id: &ResourceId,
         ) -> impl Future<Output = Result<(), Self::Error>> + Send {
             self.delete_calls.fetch_add(1, Ordering::Relaxed);
+            *self.component.lock().unwrap() = None;
             ready(Ok(()))
         }
     }
@@ -237,7 +248,18 @@ mod tests {
     #[tokio::test]
     async fn delete_demo_component_uses_core_component_lifecycle_uow() {
         let uow = MockUow::default();
-        let repo = MockRepo::default();
+        let repo = MockRepo::with_component(
+            Component::create(
+                ResourceId::new("demo-component-1".to_string()).unwrap(),
+                "Demo component".to_string(),
+                Some("demo".to_string()),
+                None,
+                vec![],
+                Default::default(),
+            )
+            .unwrap()
+            .0,
+        );
         let sink = MockEventSink::default();
 
         let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
@@ -251,6 +273,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(uow.execute_call_count(), 1);
+        assert_eq!(repo.find_call_count(), 1);
         assert_eq!(repo.delete_call_count(), 1);
         assert_eq!(sink.append_call_count(), 1);
     }

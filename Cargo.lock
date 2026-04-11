@@ -407,6 +407,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fscl-messaging"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "fscl_core"
 version = "0.1.0"
 dependencies = [
@@ -416,6 +427,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "fmt",
+ "fscl-messaging",
  "log",
  "serde",
  "serde_json",

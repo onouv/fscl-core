@@ -1,5 +1,5 @@
 use sqlx::{Error, Transaction, postgres::Postgres};
-use crate::adapters::driving::messaging::MessagedEvent;
+use crate::adapters::driving::messaging::EventMessage;
 
 
 #[derive(Clone)]
@@ -9,14 +9,18 @@ impl OutboxRepo {
     pub async fn save(
         &self,
         tx: &mut Transaction<'_, Postgres>,
-        event: &MessagedEvent,
+        event: &EventMessage,
     ) -> Result<(), Error> {
-        let id = event.id().to_string();
-        let view = event.view();
-        let name = event.name();
-        sqlx::query("INSERT INTO outbox (id, name) VALUES ($1, $2)")
-            .bind(&id())
-            .bind(name)
+        sqlx::query(
+            "INSERT INTO outbox (id, occurred_at, event_type, aggregate_type, aggregate_id, view_id, payload) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+            .bind(event.id)
+            .bind(event.occurred_at)
+            .bind(&event.event_type)
+            .bind(&event.aggregate_type)
+            .bind(&event.aggregate_id)
+            .bind(&event.view_id)
+            .bind(&event.payload)
             .execute(&mut **tx)
             .await?;
 
