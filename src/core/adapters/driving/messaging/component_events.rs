@@ -1,9 +1,9 @@
-use super::event_message::EventMessage;
 use chrono::Utc;
+use fscl_messaging::{AggregateType, EventEnvelope};
 use crate::core::build_event_envelope;
 use crate::core::domain::{ComponentCreated, ComponentDeleted, DomainEvent};
 
-impl From<DomainEvent> for EventMessage {
+impl From<DomainEvent> for EventEnvelope {
     fn from(domain_event: DomainEvent) -> Self {
         match domain_event {
             DomainEvent::ComponentCreated(evt) => component_created_event_to_envelope(evt),
@@ -12,13 +12,13 @@ impl From<DomainEvent> for EventMessage {
     }
 }
 
-fn component_created_event_to_envelope(event: ComponentCreated) -> EventMessage {
+fn component_created_event_to_envelope(event: ComponentCreated) -> EventEnvelope {
     let aggregate_id = event.component_id.clone();
 
     build_event_envelope(
         Utc::now(),
         "created",
-        "component",
+        AggregateType::Component,
         &aggregate_id,
         "component_view",
         event,
@@ -26,13 +26,13 @@ fn component_created_event_to_envelope(event: ComponentCreated) -> EventMessage 
     .expect("component created event should serialize")
 }
 
-fn component_deleted_event_to_envelope(event: ComponentDeleted) -> EventMessage {
+fn component_deleted_event_to_envelope(event: ComponentDeleted) -> EventEnvelope {
     let aggregate_id = event.component_id.clone();
 
     build_event_envelope(
         Utc::now(),
         "deleted",
-        "component",
+        AggregateType::Component,
         &aggregate_id,
         "component_view",
         event,

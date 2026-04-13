@@ -1,5 +1,5 @@
 use sqlx::{Error, Transaction, postgres::Postgres};
-use crate::adapters::driving::messaging::EventMessage;
+use crate::adapters::driving::messaging::event_message::EventMessage;
 
 
 #[derive(Clone)]
@@ -17,7 +17,7 @@ impl OutboxRepo {
             .bind(event.id)
             .bind(event.occurred_at)
             .bind(&event.event_type)
-            .bind(&event.aggregate_type)
+            .bind(event.aggregate_type.as_str())
             .bind(&event.aggregate_id)
             .bind(&event.view_id)
             .bind(&event.payload)

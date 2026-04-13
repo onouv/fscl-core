@@ -1,2 +1,1 @@
-mod messaging;
-pub use messaging::*;
+pub(crate) mod messaging;

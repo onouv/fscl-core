@@ -3,22 +3,23 @@ use serde::Serialize;
 
 use crate::ResourceId;
 
-pub use fscl_messaging::{
-    EnvelopeBuilder,
+use fscl_messaging::{
+    AggregateType,
     EventEnvelope,
     EventEnvelopeError,
-    OutboxRecord,
+};
+
+pub use fscl_messaging::{
     OUTBOX_NOTIFY_CHANNEL,
     OUTBOX_SCHEMA_SQL,
     OUTBOX_SCHEMA_VERSION,
     OUTBOX_TABLE,
-    PublishState,
 };
 
 pub fn build_event_envelope<T: Serialize>(
     occurred_at: DateTime<Utc>,
     event_type: impl Into<String>,
-    aggregate_type: impl Into<String>,
+    aggregate_type: AggregateType,
     aggregate_id: &ResourceId,
     view_id: impl Into<String>,
     payload: T,
@@ -51,7 +52,7 @@ mod tests {
         let envelope = build_event_envelope(
             Utc::now(),
             "created",
-            "component",
+            AggregateType::Component,
             &resource_id,
             "process",
             Payload { name: "Compressor" },
