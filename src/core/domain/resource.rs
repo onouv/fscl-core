@@ -1,11 +1,43 @@
-use std::fmt::{self, Display, Formatter};
+use serde::Serialize;
 use thiserror::Error;
 
-pub trait Resource {
-    fn id(&self) -> ResourceId;
+/// The essential data of any FSCL resource.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Resource {
+    pub id: ResourceId,
+    pub name: String,
+    pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+impl Resource {
+    pub fn new(id: ResourceId, name: String, description: Option<String>) -> Self {
+        Self { id, name, description }
+    }
+
+    /*
+    pub fn from_resource<R: Resource>(resource: &R) -> Self {
+        Self {
+            id: resource.id(),
+            name: resource.name(),
+            description: resource.description(),
+        }
+    }
+*/
+    pub fn id(&self) -> ResourceId {
+        self.id.clone()
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn description(&self) -> Option<String> {
+        self.description.clone()
+    }
+}
+
+/// The idiomatic identifier type for FSCL resources.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ResourceId(String);
 
 impl ResourceId {
@@ -20,26 +52,16 @@ impl ResourceId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn to_string(&self) -> String {
+        self.0.clone()
+    }
 }
 
 #[derive(Debug, Clone, Error)]
 pub enum ResourceIdError {
+    #[error("Resource ID cannot be empty.")]
     ResourceIdEmpty,
     // There will more parsing errors...
 }
 
-impl Display for ResourceId {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Display for ResourceIdError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let result = match self {
-            ResourceIdError::ResourceIdEmpty => "Empty id string."
-        }; 
-        
-        write!(f, "{}", result)
-    }
-}
