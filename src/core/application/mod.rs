@@ -1,2 +1,3 @@
-mod unit_of_work;
-pub use unit_of_work::*;
+mod component_lifecycle_uow;
+
+pub use component_lifecycle_uow::*;
