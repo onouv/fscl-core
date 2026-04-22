@@ -186,6 +186,8 @@ mod tests {
     use crate::core::domain::{Component, DomainEvent, ResourceId};
     use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
+    // static VIEW_ID: &str = "test-view";
+
     #[derive(Clone, Default)]
     struct MockTx;
 
@@ -212,8 +214,9 @@ mod tests {
             T: Send,
             F: for<'tx> FnOnce(
                     &'tx mut Self::Tx<'tx>,
-                ) -> Pin<Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>>
-                + Send
+                ) -> Pin<
+                    Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>,
+                > + Send
                 + 'static,
         {
             async move {
@@ -312,7 +315,11 @@ mod tests {
         let repo = MockRepo::default();
         let sink = MockEventSink::default();
 
-        let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
+        let service = ComponentLifecycleUow::new(
+            uow.clone(),
+            repo.clone(),
+            sink.clone(),
+        );
 
         service
             .create_component(CreateComponentRequest {
@@ -346,7 +353,11 @@ mod tests {
         let repo = MockRepo::with_component(component);
         let sink = MockEventSink::default();
 
-        let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
+        let service = ComponentLifecycleUow::new(
+            uow.clone(),
+            repo.clone(),
+            sink.clone(),
+        );
 
         service
             .delete_component(DeleteComponentRequest {
@@ -366,7 +377,11 @@ mod tests {
         let repo = MockRepo::default();
         let sink = MockEventSink::default();
 
-        let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
+        let service = ComponentLifecycleUow::new(
+            uow.clone(),
+            repo.clone(),
+            sink.clone(),
+        );
 
         let result = service
             .delete_component(DeleteComponentRequest {

@@ -1,6 +1,4 @@
 //! Demo client service for component create/delete using the core application slice.
-//! This module intentionally avoids workflow-trait composition and uses the component
-//! lifecycle UoW service directly.
 
 #![allow(dead_code)]
 
@@ -12,6 +10,8 @@ use crate::core::application::{
     DeleteComponentRequest,
 };
 use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
+
+static VIEW_ID: &str = "demo";
 
 #[derive(Debug, Clone)]
 pub struct CreateDemoComponentRequest {
@@ -83,13 +83,21 @@ where
 mod tests {
     use std::future::{Future, ready};
     use std::pin::Pin;
-    use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use fscl_messaging::EventEnvelope;
 
     use super::{CreateDemoComponentRequest, DeleteDemoComponentRequest, DemoComponentService};
+    use crate::core::adapters::driving::messaging::{
+        ComponentDomainEventMapper,
+        DomainEventOutboxPublisher,
+        OutboxWriter,
+    };
     use crate::core::application::ComponentLifecycleUow;
-    use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
-    use crate::{Component, DomainEvent, ResourceId};
+    use crate::core::ports::{ComponentRepositoryPort, UnitOfWorkPort};
+    use crate::demo_client::demo_component_service::VIEW_ID;
+    use crate::{Component, ResourceId};
 
     #[derive(Clone, Default)]
     struct MockTx;
@@ -195,26 +203,32 @@ mod tests {
     }
 
     #[derive(Clone, Default)]
-    struct MockEventSink {
+    struct MockOutboxWriter {
         append_calls: Arc<AtomicUsize>,
+        view_ids: Arc<Mutex<Vec<String>>>,
     }
 
-    impl MockEventSink {
+    impl MockOutboxWriter {
         fn append_call_count(&self) -> usize {
             self.append_calls.load(Ordering::Relaxed)
         }
+
+        fn view_ids(&self) -> Vec<String> {
+            self.view_ids.lock().unwrap().clone()
+        }
     }
 
-    impl DomainEventPublisherPort for MockEventSink {
+    impl OutboxWriter for MockOutboxWriter {
         type Error = String;
         type Tx<'tx> = MockTx;
 
-        fn publish(
+        fn append(
             &self,
             _tx: &mut Self::Tx<'_>,
-            _event: &DomainEvent,
+            envelope: EventEnvelope,
         ) -> impl Future<Output = Result<(), Self::Error>> + Send {
             self.append_calls.fetch_add(1, Ordering::Relaxed);
+            self.view_ids.lock().unwrap().push(envelope.view_id);
             ready(Ok(()))
         }
     }
@@ -223,9 +237,14 @@ mod tests {
     async fn create_demo_component_uses_core_component_lifecycle_uow() {
         let uow = MockUow::default();
         let repo = MockRepo::default();
-        let sink = MockEventSink::default();
+        let writer = MockOutboxWriter::default();
+        let publisher = DomainEventOutboxPublisher::new(
+            VIEW_ID,
+            ComponentDomainEventMapper,
+            writer.clone(),
+        );
 
-        let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
+        let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), publisher);
         let service = DemoComponentService::new(lifecycle);
 
         service
@@ -242,7 +261,8 @@ mod tests {
 
         assert_eq!(uow.execute_call_count(), 1);
         assert_eq!(repo.upsert_call_count(), 1);
-        assert_eq!(sink.append_call_count(), 1);
+        assert_eq!(writer.append_call_count(), 1);
+        assert_eq!(writer.view_ids(), vec![VIEW_ID.to_string()]);
     }
 
     #[tokio::test]
@@ -260,9 +280,14 @@ mod tests {
             .unwrap()
             .0,
         );
-        let sink = MockEventSink::default();
+        let writer = MockOutboxWriter::default();
+        let publisher = DomainEventOutboxPublisher::new(
+            VIEW_ID,
+            ComponentDomainEventMapper,
+            writer.clone(),
+        );
 
-        let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
+        let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), publisher);
         let service = DemoComponentService::new(lifecycle);
 
         service
@@ -275,6 +300,7 @@ mod tests {
         assert_eq!(uow.execute_call_count(), 1);
         assert_eq!(repo.find_call_count(), 1);
         assert_eq!(repo.delete_call_count(), 1);
-        assert_eq!(sink.append_call_count(), 1);
+        assert_eq!(writer.append_call_count(), 1);
+        assert_eq!(writer.view_ids(), vec![VIEW_ID.to_string()]);
     }
 }
