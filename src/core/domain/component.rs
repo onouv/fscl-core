@@ -50,6 +50,14 @@ impl Component {
         &self.inner.id
     }
 
+    pub fn name(&self) -> String {
+        self.inner.name.clone()
+    }
+
+    pub fn description(&self) -> Option<String> {
+        self.inner.description.clone()
+    }
+
     fn created_event(&self) -> DomainEvent {
         DomainEvent::ComponentCreated(ComponentCreated {
             component_id: self.inner.id.clone(),

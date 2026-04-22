@@ -66,6 +66,6 @@ where
             + Send
             + 'static,
     {
-        Self::execute(self, operation)
+        async move { self.db.execute_in_transaction(operation).await }
     }
 }
