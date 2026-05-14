@@ -1,19 +1,12 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use crate::ResourceId;
+use crate::{IdFormat, ResourceId};
 
-use fscl_messaging::{
-    AggregateType,
-    EventEnvelope,
-    EventEnvelopeError,
-};
+use fscl_messaging::{AggregateType, EventEnvelope, EventEnvelopeError};
 
 pub use fscl_messaging::{
-    OUTBOX_NOTIFY_CHANNEL,
-    OUTBOX_SCHEMA_SQL,
-    OUTBOX_SCHEMA_VERSION,
-    OUTBOX_TABLE,
+    OUTBOX_NOTIFY_CHANNEL, OUTBOX_SCHEMA_SQL, OUTBOX_SCHEMA_VERSION, OUTBOX_TABLE,
 };
 
 pub fn build_event_envelope<T: Serialize>(
@@ -35,7 +28,7 @@ pub fn build_event_envelope<T: Serialize>(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use chrono::{Utc, format};
     use serde::Serialize;
 
     use super::*;
@@ -47,7 +40,9 @@ mod tests {
 
     #[test]
     fn builds_envelope_from_resource_id() {
-        let resource_id = ResourceId::new("component-1".to_string()).expect("resource id should build");
+        let format = IdFormat::new(None, None, None).unwrap();
+        let resource_id =
+            ResourceId::new("component-1".to_string(), format).expect("resource id should build");
 
         let envelope = build_event_envelope(
             Utc::now(),

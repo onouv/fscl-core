@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::future::Future;
 
-use crate::core::domain::{Component, ComponentError, ResourceId, ResourceIdError};
+use crate::core::domain::{Component, ComponentError, IdFormat, ResourceId, ResourceIdError};
 use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
 #[derive(Debug, Clone)]
@@ -84,18 +84,18 @@ where
         let unit_of_work = self.unit_of_work.clone();
         let repository = self.repository.clone();
         let publisher = self.publisher.clone();
-
+        let format = IdFormat::new(None, None, None).unwrap();
         async move {
-            let id = ResourceId::new(request.id)?;
+            let id = ResourceId::new(request.id, format.clone())?;
             let parent = request
                 .parent
-                .map(ResourceId::new)
+                .map(|parent| ResourceId::new(parent, format.clone()))
                 .transpose()
                 .map_err(CreateComponentError::InvalidId)?;
 
             let mut children = Vec::with_capacity(request.children.len());
             for child in request.children {
-                children.push(ResourceId::new(child)?);
+                children.push(ResourceId::new(child, format.clone())?);
             }
 
             let (component, event) = Component::create(
@@ -131,9 +131,10 @@ where
         let unit_of_work = self.unit_of_work.clone();
         let repository = self.repository.clone();
         let publisher = self.publisher.clone();
+        let format = IdFormat::new(None, None, None).unwrap();
 
         async move {
-            let id = ResourceId::new(request.id)?;
+            let id = ResourceId::new(request.id, format)?;
 
             let outcome = unit_of_work
                 .execute(move |tx| {
@@ -183,7 +184,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::{ComponentLifecycleUow, CreateComponentRequest, DeleteComponentRequest};
-    use crate::core::domain::{Component, DomainEvent, ResourceId};
+    use crate::core::domain::{Component, DomainEvent, IdFormat, ResourceId};
     use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
     // static VIEW_ID: &str = "test-view";
@@ -315,11 +316,7 @@ mod tests {
         let repo = MockRepo::default();
         let sink = MockEventSink::default();
 
-        let service = ComponentLifecycleUow::new(
-            uow.clone(),
-            repo.clone(),
-            sink.clone(),
-        );
+        let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
 
         service
             .create_component(CreateComponentRequest {
@@ -341,8 +338,9 @@ mod tests {
     #[tokio::test]
     async fn delete_component_runs_repo_and_event_sink_inside_uow() {
         let uow = MockUow::default();
+        let format = IdFormat::new(None, None, None).unwrap();
         let (component, _) = Component::create(
-            ResourceId::new("component-1".to_string()).unwrap(),
+            ResourceId::new("component-1".to_string(), format).unwrap(),
             "Main component".to_string(),
             Some("demo".to_string()),
             None,
@@ -353,11 +351,7 @@ mod tests {
         let repo = MockRepo::with_component(component);
         let sink = MockEventSink::default();
 
-        let service = ComponentLifecycleUow::new(
-            uow.clone(),
-            repo.clone(),
-            sink.clone(),
-        );
+        let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
 
         service
             .delete_component(DeleteComponentRequest {
@@ -377,11 +371,7 @@ mod tests {
         let repo = MockRepo::default();
         let sink = MockEventSink::default();
 
-        let service = ComponentLifecycleUow::new(
-            uow.clone(),
-            repo.clone(),
-            sink.clone(),
-        );
+        let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
 
         let result = service
             .delete_component(DeleteComponentRequest {

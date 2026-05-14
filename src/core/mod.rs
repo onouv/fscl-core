@@ -1,4 +1,4 @@
-mod domain;
+pub(crate) mod domain;
 pub use domain::*;
 pub mod application;
 pub use application::*;

@@ -90,14 +90,12 @@ mod tests {
 
     use super::{CreateDemoComponentRequest, DeleteDemoComponentRequest, DemoComponentService};
     use crate::core::adapters::driving::messaging::{
-        ComponentDomainEventMapper,
-        DomainEventOutboxPublisher,
-        OutboxWriter,
+        ComponentDomainEventMapper, DomainEventOutboxPublisher, OutboxWriter,
     };
     use crate::core::application::ComponentLifecycleUow;
     use crate::core::ports::{ComponentRepositoryPort, UnitOfWorkPort};
     use crate::demo_client::demo_component_service::VIEW_ID;
-    use crate::{Component, ResourceId};
+    use crate::{Component, IdFormat, ResourceId};
 
     #[derive(Clone, Default)]
     struct MockTx;
@@ -238,11 +236,8 @@ mod tests {
         let uow = MockUow::default();
         let repo = MockRepo::default();
         let writer = MockOutboxWriter::default();
-        let publisher = DomainEventOutboxPublisher::new(
-            VIEW_ID,
-            ComponentDomainEventMapper,
-            writer.clone(),
-        );
+        let publisher =
+            DomainEventOutboxPublisher::new(VIEW_ID, ComponentDomainEventMapper, writer.clone());
 
         let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), publisher);
         let service = DemoComponentService::new(lifecycle);
@@ -268,9 +263,10 @@ mod tests {
     #[tokio::test]
     async fn delete_demo_component_uses_core_component_lifecycle_uow() {
         let uow = MockUow::default();
+        let format = IdFormat::new(None, None, None).unwrap();
         let repo = MockRepo::with_component(
             Component::create(
-                ResourceId::new("demo-component-1".to_string()).unwrap(),
+                ResourceId::new("demo-component-1".to_string(), format).unwrap(),
                 "Demo component".to_string(),
                 Some("demo".to_string()),
                 None,
@@ -281,11 +277,8 @@ mod tests {
             .0,
         );
         let writer = MockOutboxWriter::default();
-        let publisher = DomainEventOutboxPublisher::new(
-            VIEW_ID,
-            ComponentDomainEventMapper,
-            writer.clone(),
-        );
+        let publisher =
+            DomainEventOutboxPublisher::new(VIEW_ID, ComponentDomainEventMapper, writer.clone());
 
         let lifecycle = ComponentLifecycleUow::new(uow.clone(), repo.clone(), publisher);
         let service = DemoComponentService::new(lifecycle);
