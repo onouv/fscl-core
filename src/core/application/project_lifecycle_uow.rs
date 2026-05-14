@@ -58,10 +58,8 @@ where
         let repository = self.repository.clone();
 
         async move {
-            let id_format =
-                IdFormat::new(request.prefix, request.separator, request.block_length)?;
-            let project =
-                Project::new(request.id, request.name, request.description, id_format)?;
+            let id_format = IdFormat::new(request.prefix, request.separator, request.block_length)?;
+            let project = Project::new(request.id, request.name, request.description, id_format)?;
             let project_to_return = project.clone();
 
             let saved = unit_of_work
@@ -117,8 +115,9 @@ mod tests {
             T: Send,
             F: for<'tx> FnOnce(
                     &'tx mut Self::Tx<'tx>,
-                ) -> Pin<Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>>
-                + Send
+                ) -> Pin<
+                    Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>,
+                > + Send
                 + 'static,
         {
             async move {

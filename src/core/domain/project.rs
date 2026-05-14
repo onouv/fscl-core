@@ -5,7 +5,7 @@ pub struct Project {
     pub id: ProjectId,
     pub name: String,
     pub description: Option<String>,
-    pub id_format: IdFormat,
+    pub resource_id_format: IdFormat,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -19,7 +19,7 @@ impl Project {
         id: ProjectId,
         name: String,
         description: Option<String>,
-        id_format: IdFormat,
+        resource_id_format: IdFormat,
     ) -> Result<Self, ProjectError> {
         if name.is_empty() {
             return Err(ProjectError::EmptyName);
@@ -28,7 +28,7 @@ impl Project {
             id,
             name,
             description,
-            id_format,
+            resource_id_format,
         })
     }
 }

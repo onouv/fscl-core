@@ -108,8 +108,9 @@ mod tests {
             T: Send,
             F: for<'tx> FnOnce(
                     &'tx mut Self::Tx<'tx>,
-                ) -> Pin<Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>>
-                + Send
+                ) -> Pin<
+                    Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>,
+                > + Send
                 + 'static,
         {
             async move {
@@ -184,8 +185,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_empty_project_id() {
         let repo = MockRepo::default();
-        let handler =
-            ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo));
+        let handler = ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo));
 
         let result = handler.handle(event("", "Project A")).await;
 
@@ -198,8 +198,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_empty_name() {
         let repo = MockRepo::default();
-        let handler =
-            ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo));
+        let handler = ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo));
 
         let result = handler.handle(event("project-a", "")).await;
 
