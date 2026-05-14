@@ -2,16 +2,16 @@ use std::future::Future;
 
 use fscl_messaging::ProjectCreatedEvent;
 
-use crate::core::application::{
-    InitializeProjectIdFormatError, InitializeProjectIdFormatRequest, ProjectIdFormatInitializerUow,
-};
-use crate::core::domain::{ProjectId, ProjectIdError, ResourceIdError};
-use crate::core::ports::{ProjectIdFormatRepositoryPort, UnitOfWorkPort};
+use crate::core::application::{CreateProjectError, CreateProjectRequest, ProjectLifecycleUow};
+use crate::core::domain::{ProjectError, ProjectId, ProjectIdError, ResourceIdError};
+use crate::core::ports::{ProjectRepositoryPort, UnitOfWorkPort};
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandleProjectCreatedEventError<E> {
     #[error(transparent)]
     InvalidProjectId(#[from] ProjectIdError),
+    #[error(transparent)]
+    InvalidName(ProjectError),
     #[error(transparent)]
     InvalidFormat(#[from] ResourceIdError),
     #[error("Infrastructure error during project-created handling")]
@@ -22,18 +22,18 @@ pub enum HandleProjectCreatedEventError<E> {
 pub struct ProjectCreatedEventHandlerUow<U, R>
 where
     U: UnitOfWorkPort,
-    R: ProjectIdFormatRepositoryPort<Error = U::Error>,
+    R: ProjectRepositoryPort<Error = U::Error>,
 {
-    initializer: ProjectIdFormatInitializerUow<U, R>,
+    lifecycle: ProjectLifecycleUow<U, R>,
 }
 
 impl<U, R> ProjectCreatedEventHandlerUow<U, R>
 where
     U: UnitOfWorkPort,
-    R: ProjectIdFormatRepositoryPort<Error = U::Error> + 'static,
+    R: ProjectRepositoryPort<Error = U::Error> + 'static,
 {
-    pub fn new(initializer: ProjectIdFormatInitializerUow<U, R>) -> Self {
-        Self { initializer }
+    pub fn new(lifecycle: ProjectLifecycleUow<U, R>) -> Self {
+        Self { lifecycle }
     }
 
     pub fn handle(
@@ -41,16 +41,18 @@ where
         event: ProjectCreatedEvent,
     ) -> impl Future<Output = Result<(), HandleProjectCreatedEventError<U::Error>>> + Send
     where
-        R: for<'tx> ProjectIdFormatRepositoryPort<Error = U::Error, Tx<'tx> = U::Tx<'tx>>,
+        R: for<'tx> ProjectRepositoryPort<Error = U::Error, Tx<'tx> = U::Tx<'tx>>,
     {
-        let initializer = self.initializer.clone();
+        let lifecycle = self.lifecycle.clone();
 
         async move {
             let project_id = ProjectId::new(event.project_id)?;
 
-            match initializer
-                .initialize(InitializeProjectIdFormatRequest {
-                    project_id,
+            match lifecycle
+                .create_project(CreateProjectRequest {
+                    id: project_id,
+                    name: event.name,
+                    description: event.description,
                     prefix: event.prefix,
                     separator: event.separator,
                     block_length: event.block_length,
@@ -58,15 +60,15 @@ where
                 .await
             {
                 Ok(_) => Ok(()),
-                Err(InitializeProjectIdFormatError::AlreadyInitialized) => Ok(()),
-                Err(InitializeProjectIdFormatError::InvalidFormat(error)) => {
-                    Err(HandleProjectCreatedEventError::InvalidFormat(error))
+                Err(CreateProjectError::AlreadyExists) => Ok(()),
+                Err(CreateProjectError::InvalidName(e)) => {
+                    Err(HandleProjectCreatedEventError::InvalidName(e))
                 }
-                Err(InitializeProjectIdFormatError::EmptyProjectId) => Err(
-                    HandleProjectCreatedEventError::InvalidProjectId(ProjectIdError::Empty),
-                ),
-                Err(InitializeProjectIdFormatError::Infrastructure(error)) => {
-                    Err(HandleProjectCreatedEventError::Infrastructure(error))
+                Err(CreateProjectError::InvalidFormat(e)) => {
+                    Err(HandleProjectCreatedEventError::InvalidFormat(e))
+                }
+                Err(CreateProjectError::Infrastructure(e)) => {
+                    Err(HandleProjectCreatedEventError::Infrastructure(e))
                 }
             }
         }
@@ -84,9 +86,9 @@ mod tests {
     use uuid::Uuid;
 
     use super::{HandleProjectCreatedEventError, ProjectCreatedEventHandlerUow};
-    use crate::core::application::ProjectIdFormatInitializerUow;
-    use crate::core::domain::IdFormat;
-    use crate::core::ports::{ProjectIdFormatRepositoryPort, UnitOfWorkPort};
+    use crate::core::application::ProjectLifecycleUow;
+    use crate::core::domain::{Project, ProjectId};
+    use crate::core::ports::{ProjectRepositoryPort, UnitOfWorkPort};
 
     #[derive(Clone, Default)]
     struct MockTx;
@@ -106,9 +108,8 @@ mod tests {
             T: Send,
             F: for<'tx> FnOnce(
                     &'tx mut Self::Tx<'tx>,
-                ) -> Pin<
-                    Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>,
-                > + Send
+                ) -> Pin<Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>>
+                + Send
                 + 'static,
         {
             async move {
@@ -120,57 +121,62 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct MockRepo {
-        formats: Arc<Mutex<HashMap<String, IdFormat>>>,
+        projects: Arc<Mutex<HashMap<ProjectId, Project>>>,
     }
 
     impl MockRepo {
         fn count(&self) -> usize {
-            self.formats.lock().unwrap().len()
+            self.projects.lock().unwrap().len()
         }
     }
 
-    impl ProjectIdFormatRepositoryPort for MockRepo {
+    impl ProjectRepositoryPort for MockRepo {
         type Error = String;
         type Tx<'tx> = MockTx;
 
-        fn find_project_id_format(
+        fn find_project(
             &self,
             _tx: &mut Self::Tx<'_>,
-            project_id: &str,
-        ) -> impl Future<Output = Result<Option<IdFormat>, Self::Error>> + Send {
-            ready(Ok(self.formats.lock().unwrap().get(project_id).cloned()))
+            id: &ProjectId,
+        ) -> impl Future<Output = Result<Option<Project>, Self::Error>> + Send {
+            ready(Ok(self.projects.lock().unwrap().get(id).cloned()))
         }
 
-        fn save_project_id_format(
+        fn save_project(
             &self,
             _tx: &mut Self::Tx<'_>,
-            project_id: &str,
-            format: &IdFormat,
+            project: &Project,
         ) -> impl Future<Output = Result<(), Self::Error>> + Send {
-            self.formats
+            self.projects
                 .lock()
                 .unwrap()
-                .insert(project_id.to_string(), format.clone());
+                .insert(project.id.clone(), project.clone());
             ready(Ok(()))
+        }
+    }
+
+    fn event(project_id: &str, name: &str) -> ProjectCreatedEvent {
+        ProjectCreatedEvent {
+            event_id: Uuid::new_v4(),
+            occurred_at: chrono::Utc::now(),
+            project_id: project_id.to_string(),
+            name: name.to_string(),
+            description: None,
+            prefix: Some("=".to_string()),
+            separator: Some(".".to_string()),
+            block_length: Some(4),
         }
     }
 
     #[tokio::test]
     async fn handles_project_created_event_idempotently() {
         let repo = MockRepo::default();
-        let initializer = ProjectIdFormatInitializerUow::new(MockUow, repo.clone());
-        let handler = ProjectCreatedEventHandlerUow::new(initializer);
-        let event = ProjectCreatedEvent {
-            event_id: Uuid::new_v4(),
-            occurred_at: chrono::Utc::now(),
-            project_id: "project-a".to_string(),
-            prefix: Some("=".to_string()),
-            separator: Some(".".to_string()),
-            block_length: Some(4),
-        };
+        let handler =
+            ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo.clone()));
+        let e = event("project-a", "Project A");
 
-        handler.handle(event.clone()).await.unwrap();
-        handler.handle(event).await.unwrap();
+        handler.handle(e.clone()).await.unwrap();
+        handler.handle(e).await.unwrap();
 
         assert_eq!(repo.count(), 1);
     }
@@ -178,22 +184,28 @@ mod tests {
     #[tokio::test]
     async fn rejects_empty_project_id() {
         let repo = MockRepo::default();
-        let initializer = ProjectIdFormatInitializerUow::new(MockUow, repo);
-        let handler = ProjectCreatedEventHandlerUow::new(initializer);
-        let event = ProjectCreatedEvent {
-            event_id: Uuid::new_v4(),
-            occurred_at: chrono::Utc::now(),
-            project_id: String::new(),
-            prefix: Some("=".to_string()),
-            separator: Some(".".to_string()),
-            block_length: Some(4),
-        };
+        let handler =
+            ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo));
 
-        let result = handler.handle(event).await;
+        let result = handler.handle(event("", "Project A")).await;
 
         assert!(matches!(
             result,
             Err(HandleProjectCreatedEventError::InvalidProjectId(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn rejects_empty_name() {
+        let repo = MockRepo::default();
+        let handler =
+            ProjectCreatedEventHandlerUow::new(ProjectLifecycleUow::new(MockUow, repo));
+
+        let result = handler.handle(event("project-a", "")).await;
+
+        assert!(matches!(
+            result,
+            Err(HandleProjectCreatedEventError::InvalidName(_))
         ));
     }
 }
