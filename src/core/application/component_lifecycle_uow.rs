@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 use std::future::Future;
 
-use crate::core::domain::{Component, ComponentError, IdFormat, ResourceId, ResourceIdError};
+use crate::core::domain::{Component, ComponentError, IdFormat, ProjectId, ResourceId, ResourceIdError};
 use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
 #[derive(Debug, Clone)]
 pub struct CreateComponentRequest {
+    pub project_id: ProjectId,
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -16,6 +17,7 @@ pub struct CreateComponentRequest {
 
 #[derive(Debug, Clone)]
 pub struct DeleteComponentRequest {
+    pub project_id: ProjectId,
     pub id: String,
 }
 
@@ -86,16 +88,17 @@ where
         let publisher = self.publisher.clone();
         let format = IdFormat::new(None, None, None).unwrap();
         async move {
-            let id = ResourceId::new(request.id, format.clone())?;
+            let project_id = request.project_id.clone();
+            let id = ResourceId::new(project_id.clone(), request.id, format.clone())?;
             let parent = request
                 .parent
-                .map(|parent| ResourceId::new(parent, format.clone()))
+                .map(|parent| ResourceId::new(project_id.clone(), parent, format.clone()))
                 .transpose()
                 .map_err(CreateComponentError::InvalidId)?;
 
             let mut children = Vec::with_capacity(request.children.len());
             for child in request.children {
-                children.push(ResourceId::new(child, format.clone())?);
+                children.push(ResourceId::new(project_id.clone(), child, format.clone())?);
             }
 
             let (component, event) = Component::create(
@@ -134,7 +137,8 @@ where
         let format = IdFormat::new(None, None, None).unwrap();
 
         async move {
-            let id = ResourceId::new(request.id, format)?;
+            let project_id = request.project_id.clone();
+            let id = ResourceId::new(project_id, request.id, format)?;
 
             let outcome = unit_of_work
                 .execute(move |tx| {

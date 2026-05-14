@@ -9,12 +9,14 @@ use crate::core::application::{
     ComponentLifecycleUow, CreateComponentError, CreateComponentRequest, DeleteComponentError,
     DeleteComponentRequest,
 };
+use crate::core::domain::ProjectId;
 use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
 static VIEW_ID: &str = "demo";
 
 #[derive(Debug, Clone)]
 pub struct CreateDemoComponentRequest {
+    pub project_id: ProjectId,
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -25,6 +27,7 @@ pub struct CreateDemoComponentRequest {
 
 #[derive(Debug, Clone)]
 pub struct DeleteDemoComponentRequest {
+    pub project_id: ProjectId,
     pub id: String,
 }
 
@@ -57,6 +60,7 @@ where
         S: for<'tx> DomainEventPublisherPort<Error = U::Error, Tx<'tx> = U::Tx<'tx>>,
     {
         self.uow.create_component(CreateComponentRequest {
+            project_id: request.project_id,
             id: request.id,
             name: request.name,
             description: request.description,
@@ -74,8 +78,10 @@ where
         R: for<'tx> ComponentRepositoryPort<Error = U::Error, Tx<'tx> = U::Tx<'tx>>,
         S: for<'tx> DomainEventPublisherPort<Error = U::Error, Tx<'tx> = U::Tx<'tx>>,
     {
-        self.uow
-            .delete_component(DeleteComponentRequest { id: request.id })
+        self.uow.delete_component(DeleteComponentRequest {
+            project_id: request.project_id,
+            id: request.id,
+        })
     }
 }
 

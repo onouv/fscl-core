@@ -1,3 +1,4 @@
+use crate::core::domain::ProjectId;
 use std::fmt;
 
 use serde::Serialize;
@@ -8,37 +9,58 @@ static MAX_PREFIX_LENGTH: usize = 4;
 static MAX_SEPARATOR_LENGTH: usize = 4;
 
 /// The idiomatic identifier type for FSCL resources.
+/// Composite value object: (project_id, local_id, format).
+/// All resources are identified within the context of a project and validated by that project's IdFormat.
+///
 /// Usage:
 /// ```
+/// let project_id = ProjectId::new("proj-1".to_string()).unwrap();
 /// let format = IdFormat::new(Some("=".to_string()), Some("-".to_string()), Some(4)).unwrap();
-/// let resource_id = ResourceId::new("=-1234".to_string(), format).unwrap();
-/// assert_eq!(resource_id.as_str(), "=-1234");
+/// let resource_id = ResourceId::new(project_id, "=-1234".to_string(), format).unwrap();
+/// assert_eq!(resource_id.local_id(), "=-1234");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ResourceId {
-    inner: String,
+    project_id: ProjectId,
+    local_id: String,
     format: IdFormat,
 }
 
 impl ResourceId {
-    pub fn new(inner: String, format: IdFormat) -> Result<Self, ResourceIdError> {
-        if inner.is_empty() {
+    pub fn new(
+        project_id: ProjectId,
+        local_id: String,
+        format: IdFormat,
+    ) -> Result<Self, ResourceIdError> {
+        if local_id.is_empty() {
             return Err(ResourceIdError::Empty);
         }
 
-        format.validate(inner.clone())?;
+        format.validate(local_id.clone())?;
 
-        Ok(Self { inner, format })
+        Ok(Self {
+            project_id,
+            local_id,
+            format,
+        })
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.inner
+    pub fn project_id(&self) -> &ProjectId {
+        &self.project_id
+    }
+
+    pub fn local_id(&self) -> &str {
+        &self.local_id
+    }
+
+    pub fn format(&self) -> &IdFormat {
+        &self.format
     }
 }
 
 impl fmt::Display for ResourceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.inner)
+        write!(f, "{}:{}", self.project_id, self.local_id)
     }
 }
 
@@ -163,33 +185,40 @@ pub enum ResourceIdError {
 mod tests {
     use super::*;
 
+    fn test_project_id() -> ProjectId {
+        ProjectId::new("test-proj".to_string()).unwrap()
+    }
+
     #[test]
     fn can_be_created_with_prefix() {
+        let project_id = test_project_id();
         let format = IdFormat::new(Some("=".to_string()), Some(".".to_string()), Some(4)).unwrap();
-        let id1 = ResourceId::new("=1234".to_string(), format.clone());
+        let id1 = ResourceId::new(project_id.clone(), "=1234".to_string(), format.clone());
         assert!(id1.is_ok());
-        assert_eq!(id1.unwrap().as_str(), "=1234");
+        assert_eq!(id1.unwrap().local_id(), "=1234");
 
-        let id2 = ResourceId::new("=1234.0010".to_string(), format.clone());
+        let id2 = ResourceId::new(project_id.clone(), "=1234.0010".to_string(), format.clone());
         assert!(id2.is_ok());
-        assert_eq!(id2.unwrap().as_str(), "=1234.0010");
+        assert_eq!(id2.unwrap().local_id(), "=1234.0010");
 
-        let id3 = ResourceId::new("=1234.0001.0001".to_string(), format.clone());
+        let id3 = ResourceId::new(project_id.clone(), "=1234.0001.0001".to_string(), format.clone());
         assert!(id3.is_ok());
-        assert_eq!(id3.unwrap().as_str(), "=1234.0001.0001");
+        assert_eq!(id3.unwrap().local_id(), "=1234.0001.0001");
     }
 
     #[test]
     fn accepts_id_without_prefix_when_within_block_length() {
+        let project_id = test_project_id();
         let format = IdFormat::new(None, None, Some(4)).unwrap();
-        let result = ResourceId::new("1234".to_string(), format);
+        let result = ResourceId::new(project_id, "1234".to_string(), format);
         assert!(result.is_ok());
     }
 
     #[test]
     fn rejects_empty_id() {
+        let project_id = test_project_id();
         let format = IdFormat::new(Some("=".to_string()), Some(".".to_string()), Some(4)).unwrap();
-        let result = ResourceId::new("".to_string(), format);
+        let result = ResourceId::new(project_id, "".to_string(), format);
         assert!(matches!(result, Err(ResourceIdError::Empty)));
     }
 
@@ -234,18 +263,28 @@ mod tests {
 
     #[test]
     fn rejects_id_violating_prefix() {
+        let project_id = test_project_id();
         let format = IdFormat::new(Some("=".to_string()), Some(".".to_string()), Some(4)).unwrap();
-        let result = ResourceId::new("1234".to_string(), format);
+        let result = ResourceId::new(project_id, "1234".to_string(), format);
         assert!(matches!(result, Err(ResourceIdError::PrefixViolated)));
     }
 
     #[test]
     fn rejects_id_violating_block_length() {
+        let project_id = test_project_id();
         let format = IdFormat::new(Some("=".to_string()), Some(".".to_string()), Some(4)).unwrap();
-        let result = ResourceId::new("=12345".to_string(), format.clone());
+        let result = ResourceId::new(project_id.clone(), "=12345".to_string(), format.clone());
         assert!(matches!(result, Err(ResourceIdError::BlockLengthViolated)));
 
-        let result2 = ResourceId::new("=1234.00001".to_string(), format.clone());
+        let result2 = ResourceId::new(project_id, "=1234.00001".to_string(), format.clone());
         assert!(matches!(result2, Err(ResourceIdError::BlockLengthViolated)));
+    }
+
+    #[test]
+    fn display_formats_as_project_colon_local_id() {
+        let project_id = test_project_id();
+        let format = IdFormat::new(Some("=".to_string()), Some(".".to_string()), Some(4)).unwrap();
+        let resource_id = ResourceId::new(project_id, "=1234".to_string(), format).unwrap();
+        assert_eq!(resource_id.to_string(), "test-proj:=1234");
     }
 }

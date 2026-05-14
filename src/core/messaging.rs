@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use crate::{IdFormat, ResourceId};
+use crate::ResourceId;
 
 use fscl_messaging::{AggregateType, EventEnvelope, EventEnvelopeError};
 
@@ -21,7 +21,7 @@ pub fn build_event_envelope<T: Serialize>(
         .with_occurred_at(occurred_at)
         .with_event_type(event_type)
         .with_aggregate_type(aggregate_type)
-        .with_aggregate_id(aggregate_id.as_str())
+        .with_aggregate_id(aggregate_id.to_string())
         .with_view_id(view_id)
         .build(payload)
 }
