@@ -101,7 +101,7 @@ mod tests {
     use crate::core::application::ComponentLifecycleUow;
     use crate::core::ports::{ComponentRepositoryPort, UnitOfWorkPort};
     use crate::demo_client::demo_component_service::VIEW_ID;
-    use crate::{Component, IdFormat, ResourceId};
+    use crate::{Component, IdFormat, ProjectId, ResourceId};
 
     #[derive(Clone, Default)]
     struct MockTx;
@@ -242,6 +242,7 @@ mod tests {
         let uow = MockUow::default();
         let repo = MockRepo::default();
         let writer = MockOutboxWriter::default();
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
         let publisher =
             DomainEventOutboxPublisher::new(VIEW_ID, ComponentDomainEventMapper, writer.clone());
 
@@ -250,6 +251,7 @@ mod tests {
 
         service
             .create_demo_component(CreateDemoComponentRequest {
+                project_id,
                 id: "demo-component-1".to_string(),
                 name: "Demo component".to_string(),
                 description: Some("demo".to_string()),
@@ -269,10 +271,12 @@ mod tests {
     #[tokio::test]
     async fn delete_demo_component_uses_core_component_lifecycle_uow() {
         let uow = MockUow::default();
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
         let format = IdFormat::new(None, None, None).unwrap();
         let repo = MockRepo::with_component(
             Component::create(
-                ResourceId::new("demo-component-1".to_string(), format).unwrap(),
+                ResourceId::new(project_id.clone(), "demo-component-1".to_string(), format)
+                    .unwrap(),
                 "Demo component".to_string(),
                 Some("demo".to_string()),
                 None,
@@ -291,6 +295,7 @@ mod tests {
 
         service
             .delete_demo_component(DeleteDemoComponentRequest {
+                project_id,
                 id: "demo-component-1".to_string(),
             })
             .await

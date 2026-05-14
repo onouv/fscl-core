@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 use std::future::Future;
 
-use crate::core::domain::{Component, ComponentError, IdFormat, ProjectId, ResourceId, ResourceIdError};
+use crate::core::domain::{
+    Component, ComponentError, IdFormat, ProjectId, ResourceId, ResourceIdError,
+};
 use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
 #[derive(Debug, Clone)]
@@ -188,7 +190,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::{ComponentLifecycleUow, CreateComponentRequest, DeleteComponentRequest};
-    use crate::core::domain::{Component, DomainEvent, IdFormat, ResourceId};
+    use crate::core::domain::{Component, DomainEvent, IdFormat, ProjectId, ResourceId};
     use crate::core::ports::{ComponentRepositoryPort, DomainEventPublisherPort, UnitOfWorkPort};
 
     // static VIEW_ID: &str = "test-view";
@@ -319,11 +321,13 @@ mod tests {
         let uow = MockUow::default();
         let repo = MockRepo::default();
         let sink = MockEventSink::default();
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
 
         let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
 
         service
             .create_component(CreateComponentRequest {
+                project_id,
                 id: "component-1".to_string(),
                 name: "Main component".to_string(),
                 description: Some("demo".to_string()),
@@ -342,9 +346,10 @@ mod tests {
     #[tokio::test]
     async fn delete_component_runs_repo_and_event_sink_inside_uow() {
         let uow = MockUow::default();
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
         let format = IdFormat::new(None, None, None).unwrap();
         let (component, _) = Component::create(
-            ResourceId::new("component-1".to_string(), format).unwrap(),
+            ResourceId::new(project_id.clone(), "component-1".to_string(), format).unwrap(),
             "Main component".to_string(),
             Some("demo".to_string()),
             None,
@@ -359,6 +364,7 @@ mod tests {
 
         service
             .delete_component(DeleteComponentRequest {
+                project_id,
                 id: "component-1".to_string(),
             })
             .await
@@ -374,11 +380,13 @@ mod tests {
         let uow = MockUow::default();
         let repo = MockRepo::default();
         let sink = MockEventSink::default();
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
 
         let service = ComponentLifecycleUow::new(uow.clone(), repo.clone(), sink.clone());
 
         let result = service
             .delete_component(DeleteComponentRequest {
+                project_id,
                 id: "component-1".to_string(),
             })
             .await;

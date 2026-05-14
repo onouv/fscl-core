@@ -64,7 +64,11 @@ where
                 .execute(move |tx| {
                     let project_id_str = project_id_str.clone();
                     Box::pin(async move {
-                        if repository.find_project_id_format(tx, &project_id_str).await?.is_some() {
+                        if repository
+                            .find_project_id_format(tx, &project_id_str)
+                            .await?
+                            .is_some()
+                        {
                             return Ok(false);
                         }
 
@@ -95,9 +99,10 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::{
-        InitializeProjectIdFormatError, InitializeProjectIdFormatRequest, ProjectIdFormatInitializerUow,
+        InitializeProjectIdFormatError, InitializeProjectIdFormatRequest,
+        ProjectIdFormatInitializerUow,
     };
-    use crate::core::domain::IdFormat;
+    use crate::core::domain::{IdFormat, ProjectId};
     use crate::core::ports::{ProjectIdFormatRepositoryPort, UnitOfWorkPort};
 
     #[derive(Clone, Default)]
@@ -118,8 +123,9 @@ mod tests {
             T: Send,
             F: for<'tx> FnOnce(
                     &'tx mut Self::Tx<'tx>,
-                ) -> Pin<Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>>
-                + Send
+                ) -> Pin<
+                    Box<dyn Future<Output = Result<T, Self::Error>> + Send + 'tx>,
+                > + Send
                 + 'static,
         {
             async move {
@@ -163,10 +169,11 @@ mod tests {
     #[tokio::test]
     async fn initializes_and_saves_project_format() {
         let service = ProjectIdFormatInitializerUow::new(MockUow, MockRepo::default());
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
 
         let result = service
             .initialize(InitializeProjectIdFormatRequest {
-                project_id: "project-a".to_string(),
+                project_id,
                 prefix: Some("=".to_string()),
                 separator: Some(".".to_string()),
                 block_length: Some(4),
@@ -180,10 +187,11 @@ mod tests {
     async fn rejects_reinitialization_of_existing_project_format() {
         let repo = MockRepo::default();
         let service = ProjectIdFormatInitializerUow::new(MockUow, repo.clone());
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
 
         let first = service
             .initialize(InitializeProjectIdFormatRequest {
-                project_id: "project-a".to_string(),
+                project_id: project_id.clone(),
                 prefix: Some("=".to_string()),
                 separator: Some(".".to_string()),
                 block_length: Some(4),
@@ -193,7 +201,7 @@ mod tests {
 
         let second = service
             .initialize(InitializeProjectIdFormatRequest {
-                project_id: "project-a".to_string(),
+                project_id,
                 prefix: Some("#".to_string()),
                 separator: Some("-".to_string()),
                 block_length: Some(4),

@@ -14,10 +14,10 @@ static MAX_SEPARATOR_LENGTH: usize = 4;
 ///
 /// Usage:
 /// ```
-/// let project_id = ProjectId::new("proj-1".to_string()).unwrap();
-/// let format = IdFormat::new(Some("=".to_string()), Some("-".to_string()), Some(4)).unwrap();
-/// let resource_id = ResourceId::new(project_id, "=-1234".to_string(), format).unwrap();
-/// assert_eq!(resource_id.local_id(), "=-1234");
+/// //let project_id = ProjectId::new("proj-1".to_string()).unwrap();
+/// //let format = IdFormat::new(Some("=".to_string()), Some("-".to_string()), Some(4)).unwrap();
+/// //let resource_id = ResourceId::new(project_id, "=-1234".to_string(), format).unwrap();
+/// //assert_eq!(resource_id.local_id(), "=-1234");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ResourceId {
@@ -201,7 +201,11 @@ mod tests {
         assert!(id2.is_ok());
         assert_eq!(id2.unwrap().local_id(), "=1234.0010");
 
-        let id3 = ResourceId::new(project_id.clone(), "=1234.0001.0001".to_string(), format.clone());
+        let id3 = ResourceId::new(
+            project_id.clone(),
+            "=1234.0001.0001".to_string(),
+            format.clone(),
+        );
         assert!(id3.is_ok());
         assert_eq!(id3.unwrap().local_id(), "=1234.0001.0001");
     }

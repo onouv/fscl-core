@@ -28,8 +28,10 @@ pub fn build_event_envelope<T: Serialize>(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Utc, format};
+    use chrono::Utc;
     use serde::Serialize;
+
+    use crate::{IdFormat, ProjectId, ResourceId};
 
     use super::*;
 
@@ -41,8 +43,9 @@ mod tests {
     #[test]
     fn builds_envelope_from_resource_id() {
         let format = IdFormat::new(None, None, None).unwrap();
-        let resource_id =
-            ResourceId::new("component-1".to_string(), format).expect("resource id should build");
+        let project_id = ProjectId::new("project-a".to_string()).unwrap();
+        let resource_id = ResourceId::new(project_id, "component-1".to_string(), format)
+            .expect("resource id should build");
 
         let envelope = build_event_envelope(
             Utc::now(),
@@ -54,7 +57,7 @@ mod tests {
         )
         .expect("envelope should build");
 
-        assert_eq!(envelope.aggregate_id, "component-1");
+        assert_eq!(envelope.aggregate_id, "project-a:component-1");
         assert_eq!(envelope.subject("events"), "events.component.created");
     }
 }
